@@ -1,0 +1,134 @@
+Nice, now we lock in the routine so you never have to guess again 💪
+
+I’ll give you **two sets** of commands:
+
+1. 🟣 **ONE-TIME setup** (you probably already did most of this)
+2. 🟢 **EVERY TIME you want to run PawSense locally**
+
+I’ll assume your folders are:
+
+```text
+~/Desktop/PawSense/pawsense-backend
+~/Desktop/PawSense/pawsense-dashboard
+```
+
+---
+
+## 🟣 ONE-TIME SETUP (per laptop)
+
+Run these only when you first set things up or clone on a new machine.
+
+### 1) Backend – create venv + install Python deps
+
+```bash
+cd ~/Desktop/PawSense/pawsense-backend
+
+# create virtual env (if not already created)
+python3 -m venv venv
+
+# activate it
+source venv/bin/activate
+
+# install backend libraries
+pip install fastapi uvicorn tensorflow pillow numpy twilio python-multipart
+```
+
+Ensure your model files exist:
+
+```bash
+ls models
+```
+
+You should see:
+
+```text
+dog_skin_model_finetuned.keras
+dog_class_indices.npy
+```
+
+---
+
+### 2) Frontend – install node modules
+
+```bash
+cd ~/Desktop/PawSense/pawsense-dashboard
+npm install
+```
+
+That’s it for one-time setup ✅
+
+---
+
+## 🟢 EVERY TIME YOU WANT TO RUN LOCALLY
+
+### 🔹 Step 1: Start backend (Terminal #1)
+
+```bash
+cd ~/Desktop/PawSense/pawsense-backend
+source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Leave this terminal **open**.
+You should see:
+
+```text
+✅ Model loaded
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+You can quickly check health (optional):
+
+```bash
+curl http://localhost:8000/health
+# -> {"status":"ok"}
+```
+
+---
+
+### 🔹 Step 2: Start frontend (Terminal #2)
+
+Open a **new terminal window/tab**, then:
+
+```bash
+cd ~/Desktop/PawSense/pawsense-dashboard
+npm run dev
+```
+
+It will show something like:
+
+```text
+Local: http://localhost:5173
+```
+
+Open this in your browser:
+
+```text
+http://localhost:5173
+```
+
+---
+
+### 🔹 Step 3: Make sure URLs in React are local
+
+In `HealthDetection.jsx` (and Dashboard if needed), backend base should be:
+
+```js
+const API_BASE = "http://localhost:8000";
+const API_URL = `${API_BASE}/dog-skin`;
+const SOS_URL = `${API_BASE}/sos-alert`;
+```
+
+---
+
+## 🔴 How to STOP everything
+
+* Backend terminal: press `Ctrl + C`
+* Frontend terminal: press `Ctrl + C`
+
+Next time you want to run again, just repeat the **EVERY TIME** section:
+
+1. backend commands
+2. frontend commands
+
+If you like, I can turn all of this into a small **README.txt** you can keep in the project folder.
