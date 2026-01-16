@@ -1,0 +1,419 @@
+// src/pages/Dashboard.jsx
+import React, { useState } from "react";
+import { Image, Headphones } from "lucide-react";
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    Tooltip,
+    PieChart,
+    Pie,
+    Cell,
+    ResponsiveContainer,
+} from "recharts";
+
+import {
+    COLOR_ACCENT,
+    COLOR_BG_CARD,
+    COLOR_TEXT_DIM,
+    COLOR_BORDER,
+} from "../Layout";
+
+/// ✅ Backend URLs (PUT the ones printed in Colab)
+const DOG_API_URL =
+    "https://quantummechanical-tamesha-cytophagic.ngrok-free.dev/predict";
+const CAT_API_URL =
+    "https://quantummechanical-tamesha-cytophagic.ngrok-free.dev/predict_cat";
+
+// 🔸 Below this confidence we show a "not sure" message
+const LOW_CONFIDENCE_THRESHOLD = 40;
+
+// ✅ Emotion colors
+const EMOTION_COLORS = {
+    Angry: "#EF4444",
+    Happy: "#22C55E",
+    Relaxed: "#38BDF8",
+    Sad: "#6366F1",
+    Normal: "#10B981",
+    Scared: "#F97316",
+};
+
+// ✅ Per-animal configuration
+const ANIMAL_CONFIG = {
+    dog: {
+        label: "Dog",
+        apiUrl: DOG_API_URL,
+        emotions: ["Angry", "Happy", "Relaxed", "Sad"],
+    },
+    cat: {
+        label: "Cat",
+        apiUrl: CAT_API_URL,
+        emotions: ["Angry", "Happy", "Normal", "Scared"], // 4 classes
+    },
+};
+
+const createEmotionData = (emotions) =>
+    emotions.map((name) => ({ name, value: 0 }));
+
+const Dashboard = () => {
+    const [selectedAnimal, setSelectedAnimal] = useState("dog");
+
+    const [uploadedImage, setUploadedImage] = useState(null);
+    const [emotion, setEmotion] = useState("—");
+    const [confidence, setConfidence] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [sosActive, setSosActive] = useState(false);
+
+    const [emotionData, setEmotionData] = useState(
+        createEmotionData(ANIMAL_CONFIG.dog.emotions)
+    );
+
+    const resetCharts = (animalKey = selectedAnimal) => {
+        const cfg = ANIMAL_CONFIG[animalKey];
+        setEmotionData(createEmotionData(cfg.emotions));
+    };
+
+    const handleAnimalChange = (e) => {
+        const animalKey = e.target.value;
+        setSelectedAnimal(animalKey);
+        setEmotion("—");
+        setConfidence(0);
+        setUploadedImage(null);
+        setSosActive(false);
+        setError(null);
+        resetCharts(animalKey);
+    };
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const cfg = ANIMAL_CONFIG[selectedAnimal];
+
+        setIsLoading(true);
+        setError(null);
+        setSosActive(false);
+        setUploadedImage(URL.createObjectURL(file));
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        try {
+            const response = await fetch(cfg.apiUrl, {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const txt = await response.text();
+                throw new Error(txt || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (!data?.emotion || data.confidence == null) {
+                throw new Error("Invalid response from server");
+            }
+
+            const detectedRaw = String(data.emotion);
+            const detectedLower = detectedRaw.toLowerCase();
+            const conf = Number(data.confidence);
+
+            const displayEmotion =
+                detectedRaw.charAt(0).toUpperCase() + detectedRaw.slice(1);
+
+            setEmotion(displayEmotion);
+            setConfidence(conf.toFixed(1));
+
+            setEmotionData(
+                cfg.emotions.map((name) => ({
+                    name,
+                    value:
+                        name.toLowerCase() === detectedLower ? conf : 0,
+                }))
+            );
+
+            if (data.sos_sent) {
+                setSosActive(true);
+            }
+        } catch (err) {
+            console.error(err);
+            setError("Connection error. Please try again.");
+            resetCharts();
+            setEmotion("—");
+            setConfidence(0);
+            setSosActive(false);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAudioUpload = () => {
+        alert("Audio analysis coming soon!");
+    };
+
+    const Card = ({ title, children, className }) => (
+        <div
+            className={`p-5 flex flex-col rounded-xl shadow-md border ${className || ""
+                }`}
+            style={{
+                backgroundColor: COLOR_BG_CARD,
+                borderColor: COLOR_BORDER,
+            }}
+        >
+            {title && (
+                <h3
+                    className="text-lg font-medium uppercase mb-3 flex justify-between items-center"
+                    style={{ color: COLOR_TEXT_DIM }}
+                >
+                    <span>{title}</span>
+                </h3>
+            )}
+            {children}
+        </div>
+    );
+
+    const pieData = emotionData.filter((e) => e.value > 0);
+
+    // 👇 true when model is giving a very low-confidence answer
+    const isLowConfidence =
+        confidence > 0 && confidence < LOW_CONFIDENCE_THRESHOLD;
+
+    return (
+        <section className="mt-8">
+            {/* Header + animal selector */}
+            <div className="flex items-center justify-between mb-6">
+                <h2
+                    className="text-3xl font-light"
+                    style={{ color: COLOR_TEXT_DIM }}
+                >
+                    Live Feed
+                </h2>
+
+                <div className="flex items-center gap-2">
+                    <span
+                        className="text-sm"
+                        style={{ color: COLOR_TEXT_DIM }}
+                    >
+                        Animal:
+                    </span>
+                    <select
+                        value={selectedAnimal}
+                        onChange={handleAnimalChange}
+                        className="px-3 py-1 rounded-lg text-sm bg-transparent border"
+                        style={{
+                            borderColor: COLOR_BORDER,
+                            color: COLOR_TEXT_DIM,
+                        }}
+                    >
+                        <option value="dog">Dog</option>
+                        <option value="cat">Cat</option>
+                    </select>
+                </div>
+            </div>
+
+            {/* SOS Banner */}
+            {sosActive && (
+                <div
+                    className="mb-4 p-3 rounded-lg"
+                    style={{
+                        backgroundColor: "rgba(239,68,68,0.15)",
+                        border: "1px solid rgba(239,68,68,0.7)",
+                    }}
+                >
+                    <p
+                        className="text-sm font-semibold"
+                        style={{ color: "#EF4444" }}
+                    >
+                        🚨 SOS ALERT TRIGGERED – High-risk emotion detected.
+                    </p>
+                </div>
+            )}
+
+            <div className="main-content-grid">
+                {/* CURRENT EMOTION */}
+                <Card title="CURRENT EMOTION" className="grid-area-emotion">
+                    <div className="flex-1 flex flex-col items-center justify-center">
+                        <p
+                            className="text-4xl font-bold text-center mb-2"
+                            style={{ color: COLOR_ACCENT }}
+                        >
+                            {emotion}
+                        </p>
+                        {isLowConfidence && (
+                            <p
+                                className="text-xs text-center"
+                                style={{ color: "#F97316" }}
+                            >
+                                Model is not very sure about this prediction.
+                            </p>
+                        )}
+                    </div>
+                </Card>
+
+                {/* IMAGE + UPLOAD BUTTONS */}
+                <div
+                    className="rounded-xl border grid-area-image"
+                    style={{
+                        backgroundColor: COLOR_BG_CARD,
+                        borderColor: COLOR_BORDER,
+                    }}
+                >
+                    <div className="flex flex-col h-full">
+                        <div className="flex-1 relative overflow-hidden">
+                            {isLoading && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                                    <p style={{ color: COLOR_ACCENT }}>
+                                        Analyzing…
+                                    </p>
+                                </div>
+                            )}
+                            <img
+                                src={uploadedImage || "/logo.jpg"}
+                                alt="Pet"
+                                className="w-full h-full object-cover rounded-t-xl"
+                            />
+                        </div>
+
+                        <div className="flex justify-center py-3 gap-3">
+                            <label
+                                htmlFor="imageUpload"
+                                className="cursor-pointer px-4 py-2 rounded-full text-xs flex gap-2"
+                                style={{
+                                    backgroundColor: "#3D3D5A",
+                                    border: `1px solid ${COLOR_BORDER}`,
+                                    color: COLOR_TEXT_DIM,
+                                }}
+                            >
+                                <Image size={16} />
+                                <span>Image</span>
+                            </label>
+                            <input
+                                id="imageUpload"
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="hidden"
+                            />
+
+                            <label
+                                htmlFor="audioUpload"
+                                className="cursor-pointer px-4 py-2 rounded-full text-xs flex gap-2"
+                                style={{
+                                    backgroundColor: "#3D3D5A",
+                                    border: `1px solid ${COLOR_BORDER}`,
+                                    color: COLOR_TEXT_DIM,
+                                }}
+                            >
+                                <Headphones size={16} />
+                                <span>Audio</span>
+                            </label>
+                            <input
+                                id="audioUpload"
+                                type="file"
+                                accept="audio/*"
+                                onChange={handleAudioUpload}
+                                className="hidden"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* AI CONFIDENCE */}
+                <Card title="AI CONFIDENCE" className="grid-area-confidence">
+                    <div className="flex-1 flex items-center justify-center">
+                        <p
+                            className="text-5xl font-bold"
+                            style={{ color: COLOR_ACCENT }}
+                        >
+                            {confidence}%
+                        </p>
+                    </div>
+                </Card>
+
+                {/* EMOTION ANALYSIS */}
+                <Card title="EMOTION ANALYSIS" className="grid-area-trend1">
+                    <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={emotionData}>
+                            <XAxis dataKey="name" stroke="#94A3B8" />
+                            <YAxis hide />
+                            <Tooltip />
+                            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                                {emotionData.map((e, i) => (
+                                    <Cell
+                                        key={i}
+                                        fill={
+                                            EMOTION_COLORS[e.name] || "#64748B"
+                                        }
+                                    />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Card>
+
+                {/* EMOTION DISTRIBUTION */}
+                <Card
+                    title="EMOTION DISTRIBUTION"
+                    className="grid-area-trend2"
+                >
+                    <ResponsiveContainer width="100%" height={220}>
+                        <PieChart>
+                            <Pie
+                                data={pieData}
+                                dataKey="value"
+                                nameKey="name"
+                                innerRadius={45}
+                                outerRadius={80}
+                                paddingAngle={2}
+                            >
+                                {pieData.map((e, i) => (
+                                    <Cell
+                                        key={i}
+                                        fill={
+                                            EMOTION_COLORS[e.name] || "#64748B"
+                                        }
+                                    />
+                                ))}
+                            </Pie>
+                            <Tooltip />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </Card>
+            </div>
+
+            {error && (
+                <div
+                    className="mt-4 p-4 rounded-lg"
+                    style={{
+                        backgroundColor: "rgba(244,67,54,0.1)",
+                        border: "1px solid rgba(244,67,54,0.3)",
+                    }}
+                >
+                    <p style={{ color: "#F44336" }}>{error}</p>
+                </div>
+            )}
+
+            <style>{`
+              .main-content-grid {
+                display: grid;
+                grid-template-columns: 1fr 2fr 1fr;
+                grid-template-rows: auto auto;
+                gap: 1.5rem;
+                grid-template-areas:
+                  "emotion image confidence"
+                  "trend1 image trend2";
+              }
+              .grid-area-emotion { grid-area: emotion; min-height: 180px; }
+              .grid-area-image { grid-area: image; min-height: 500px; }
+              .grid-area-confidence { grid-area: confidence; min-height: 180px; }
+              .grid-area-trend1 { grid-area: trend1; min-height: 280px; }
+              .grid-area-trend2 { grid-area: trend2; min-height: 280px; }
+            `}</style>
+        </section>
+    );
+};
+
+export default Dashboard;
