@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- GLOBAL ---------- */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  /* ❌ no page scroll */
+}
+
+body {
+  font-family: Inter, sans-serif;
+  background: #F8FAFC;
+  color: #0F172A;
+}
+
+/* Sidebar buttons */
+aside button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+aside button:hover {
+  background: #F1F5F9;
+}
